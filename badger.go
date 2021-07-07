@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/dgraph-io/badger"
-	"strings"
 	"time"
 )
 
@@ -99,28 +98,27 @@ func (b *Badger) List(listKey string) ([][]byte, error) {
 	var resp [][]byte
 
 	err := b.db.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchSize = 10
-		it := txn.NewIterator(opts)
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
 		defer it.Close()
-		for it.Rewind(); it.Valid(); it.Next() {
+
+		prefix := []byte(listKey)
+
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 			item := it.Item()
-			k := item.Key()
 
-			if strings.HasPrefix(string(k), listKey) {
-				err := item.Value(func(v []byte) error {
-					val := make([]byte, len(v))
-					copy(val, v)
-					resp = append(resp, val)
+			err := item.Value(func(val []byte) error {
+				valCopy := make([]byte, len(val))
+				copy(val, valCopy)
+				resp = append(resp, val)
 
-					return nil
-				})
+				return nil
+			})
 
-				if err != nil {
-					return err
-				}
+			if err != nil {
+				return fmt.Errorf("item.Value: %w", err)
 			}
 		}
+
 		return nil
 	})
 
