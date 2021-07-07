@@ -1,4 +1,4 @@
-module badger
+module github.com/releaseband/filedb
 
 go 1.16
 
