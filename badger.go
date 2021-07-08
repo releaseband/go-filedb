@@ -1,12 +1,21 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/v3"
 	"time"
 )
 
-const decrement = "|"
+const (
+	decrement                  = "|"
+	defaultCLeaUpDiscardRation = 0.1
+)
+
+var (
+	ErrInvalidRangeLimit = errors.New("invalid range limit")
+	ErrNotFound          = errors.New("key not found")
+)
 
 type Cfg struct {
 	CleanupTimer time.Duration
@@ -19,19 +28,37 @@ type Badger struct {
 	errorHandler func(mess string, err error)
 }
 
+func (b *Badger) Close() error {
+	return b.db.Close()
+}
+
+func (b *Badger) Size() (lsm int64, vlog int64) {
+	return b.db.Size()
+}
+
 func (b *Badger) log(mess string, err error) {
 	if b.errorHandler != nil {
 		b.errorHandler(mess, err)
 	}
 }
 
-func (b *Badger) cleanupProc(d time.Duration) {
+func (b *Badger) CleanUp() error {
+	err := b.db.RunValueLogGC(defaultCLeaUpDiscardRation)
+	if err != nil {
+		b.errorHandler("RunValueLogGC failed", err)
+	}
+
+	return err
+}
+
+func (b *Badger) RunCleanupProc(d time.Duration) {
 	ticker := time.NewTicker(d)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if err := b.db.RunValueLogGC(0.5); err != nil {
-			b.errorHandler("RunValueLogGC failed", err)
+	again:
+		if err := b.CleanUp(); err == nil {
+			goto again
 		}
 	}
 }
@@ -69,14 +96,18 @@ func (b *Badger) Get(key string) ([]byte, error) {
 
 	if err != nil {
 		b.log("txn.Get failed", err)
+
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			err = ErrNotFound
+		}
 	}
 
 	return resp, err
 }
 
-func (b *Badger) Del(key []byte) error {
+func (b *Badger) Del(key string) error {
 	err := b.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete(key)
+		return txn.Delete([]byte(key))
 	})
 
 	if err != nil {
@@ -94,8 +125,12 @@ func (b *Badger) Push(listKey, key string, val []byte) error {
 	return b.Set(b.makeListKey(listKey, key), val)
 }
 
-func (b *Badger) Range(listKey string) ([][]byte, error) {
+func (b *Badger) Range(listKey string, limit int8) ([][]byte, error) {
 	var resp [][]byte
+
+	if limit <= 0 {
+		return nil, ErrInvalidRangeLimit
+	}
 
 	err := b.db.View(func(txn *badger.Txn) error {
 		it := txn.NewIterator(badger.DefaultIteratorOptions)
@@ -125,19 +160,14 @@ func (b *Badger) Range(listKey string) ([][]byte, error) {
 	return resp, err
 }
 
-
 func OpenDatabase(cfg Cfg) (*Badger, error) {
 	db, err := badger.Open(cfg.BadgerCfg)
 	if err != nil {
 		return nil, err
 	}
 
-	b := &Badger{
+	return &Badger{
 		db:           db,
 		errorHandler: cfg.ErrorHandler,
-	}
-
-	go b.cleanupProc(cfg.CleanupTimer)
-
-	return b, nil
+	}, nil
 }
