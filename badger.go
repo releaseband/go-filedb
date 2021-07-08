@@ -90,11 +90,11 @@ func (b Badger) makeListKey(listKey, fileKey string) string {
 	return listKey + decrement + fileKey
 }
 
-func (b *Badger) Put(listKey, key string, val []byte) error {
+func (b *Badger) Push(listKey, key string, val []byte) error {
 	return b.Set(b.makeListKey(listKey, key), val)
 }
 
-func (b *Badger) List(listKey string) ([][]byte, error) {
+func (b *Badger) Range(listKey string) ([][]byte, error) {
 	var resp [][]byte
 
 	err := b.db.View(func(txn *badger.Txn) error {

@@ -83,12 +83,12 @@ func Test_Badger(t *testing.T) {
 	)
 
 	for i := 0; i < listCount; i++ {
-		if err := bg.Put(listKey, k(i), v(i)); err != nil {
+		if err := bg.Push(listKey, k(i), v(i)); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	vals, err := bg.List(listKey)
+	vals, err := bg.Range(listKey)
 	if err != nil {
 		t.Fatal(err)
 	}
