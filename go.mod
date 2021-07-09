@@ -1,4 +1,4 @@
-module github.com/releaseband/filedb
+module github.com/releaseband/go-filedb
 
 go 1.16
 
