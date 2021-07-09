@@ -1,4 +1,4 @@
-package main
+package badger
 
 import (
 	"errors"
@@ -18,13 +18,14 @@ func handle(_ string, err error) {
 type tp struct {
 	cleanupTimer time.Duration
 	dbDir        string
+	vlogDir      string
 }
 
 func newTp(errHandlerCount int) *tp {
 	errorHandlers = make([]error, 0, errHandlerCount)
 
 	return &tp{
-		dbDir: ".database",
+		dbDir:   ".database",
 	}
 }
 
@@ -34,7 +35,6 @@ func (p tp) getErrorsCount() int {
 
 func (p tp) makeCfg() Cfg {
 	opt := badger.DefaultOptions(p.dbDir)
-	opt = opt.WithLoggingLevel(badger.INFO)
 	//opt.InMemory = true
 
 	return Cfg{
