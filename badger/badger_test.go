@@ -9,28 +9,16 @@ import (
 	"time"
 )
 
-var errorHandlers []error
-
-func handle(_ string, err error) {
-	errorHandlers = append(errorHandlers, err)
-}
-
 type tp struct {
 	cleanupTimer time.Duration
 	dbDir        string
 	vlogDir      string
 }
 
-func newTp(errHandlerCount int) *tp {
-	errorHandlers = make([]error, 0, errHandlerCount)
-
+func newTp() *tp {
 	return &tp{
-		dbDir:   ".database",
+		dbDir: ".database",
 	}
-}
-
-func (p tp) getErrorsCount() int {
-	return len(errorHandlers)
 }
 
 func (p tp) makeCfg() Cfg {
@@ -39,7 +27,6 @@ func (p tp) makeCfg() Cfg {
 
 	return Cfg{
 		CleanupTimer: 5 * time.Minute,
-		ErrorHandler: handle,
 		BadgerCfg:    opt,
 	}
 }
@@ -87,7 +74,7 @@ func (tt *tester) shouldBeError(err, expErr error) {
 func Test_Badger(t *testing.T) {
 	const count = 100
 
-	tp := newTp(count)
+	tp := newTp()
 	tt := newT(t)
 
 	cfg := tp.makeCfg()
@@ -139,20 +126,9 @@ func Test_Badger(t *testing.T) {
 		tt.shouldBeNil(err)
 	}
 
-	if tp.getErrorsCount() != 0 {
-		t.Fatalf("error handler should be empty")
-	}
-
 	for i := 0; i < count; i++ {
 		_, err = bg.Get(k(i))
 		tt.shouldBeError(err, ErrNotFound)
-
-		got := tp.getErrorsCount()
-		exp := i + 1
-
-		if exp != got {
-			t.Fatalf("errorHandlers: errors len should be = %d, but got =%d ", exp, got)
-		}
 	}
 }
 
@@ -210,7 +186,7 @@ func getPrefixExist(bg *Badger) (int, error) {
 func TestBadger_CleanUp(t *testing.T) {
 	const count = 1000
 
-	tp := newTp(count)
+	tp := newTp()
 	tt := newT(t)
 
 	cfg := tp.makeCfg()
@@ -243,13 +219,6 @@ func TestBadger_CleanUp(t *testing.T) {
 	debugSize("cleanUp", lsm, vlog)
 	tt.shouldBeError(err, badger.ErrNoRewrite)
 }
-
-//=== | before | lsm=2829949 | vlog=40 | ===
-//=== | added:  | lsm=2829949 | vlog=40 | ===
-//=== | cleanUp | lsm=2829949 | vlog=40 | ===
-//129248 2147483666
-// 129248 2147483666
-// 129248 2147483666
 
 func TestBadger_Size(t *testing.T) {
 	//const count = 1000

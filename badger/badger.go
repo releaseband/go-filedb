@@ -25,7 +25,6 @@ func  makeListKey(listKey, fileKey string) string {
 type Cfg struct {
 	CleanupTimer time.Duration
 	BadgerCfg    badger.Options
-	ErrorHandler func(mess string, err error)
 }
 
 type Badger struct {
@@ -48,12 +47,7 @@ func (b *Badger) log(mess string, err error) {
 }
 
 func (b *Badger) CleanUp() error {
-	err := b.db.RunValueLogGC(defaultCLeaUpDiscardRation)
-	if err != nil {
-		b.errorHandler("RunValueLogGC failed", err)
-	}
-
-	return err
+	return b.db.RunValueLogGC(defaultCLeaUpDiscardRation)
 }
 
 func (b *Badger) RunCleanupProc(d time.Duration) {
@@ -69,15 +63,9 @@ func (b *Badger) RunCleanupProc(d time.Duration) {
 }
 
 func (b *Badger) Set(key string, val []byte) error {
-	err := b.db.Update(func(txn *badger.Txn) error {
+	return b.db.Update(func(txn *badger.Txn) error {
 		return txn.Set([]byte(key), val)
 	})
-
-	if err != nil {
-		b.log("txnSet failed", err)
-	}
-
-	return err
 }
 
 func (b *Badger) Get(key string) ([]byte, error) {
@@ -111,15 +99,9 @@ func (b *Badger) Get(key string) ([]byte, error) {
 }
 
 func (b *Badger) Del(key string) error {
-	err := b.db.Update(func(txn *badger.Txn) error {
+	return b.db.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(key))
 	})
-
-	if err != nil {
-		b.log("txn.Delete failed", err)
-	}
-
-	return err
 }
 
 func (b *Badger) DeleteFromGroup(listKey, fileKey string) error {
@@ -174,6 +156,5 @@ func OpenDatabase(cfg Cfg) (*Badger, error) {
 
 	return &Badger{
 		db:           db,
-		errorHandler: cfg.ErrorHandler,
 	}, nil
 }
