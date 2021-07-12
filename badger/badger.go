@@ -127,10 +127,13 @@ func (b *Badger) AddToGroup(groupName, key string, val []byte) error {
 	return b.Set(listKey, val)
 }
 
-func getKeys(txn *badger.Txn, listName string) ([]string, error) {
+func getKeys(txn *badger.Txn, listName string, limit int) ([]string, error) {
 	var resp []string
 
-	it := txn.NewIterator(badger.DefaultIteratorOptions)
+	opt := badger.DefaultIteratorOptions
+	opt.PrefetchSize = limit
+
+	it := txn.NewIterator(opt)
 	defer it.Close()
 
 	prefix := []byte(keysListID(listName))
@@ -152,7 +155,7 @@ func getKeys(txn *badger.Txn, listName string) ([]string, error) {
 	return resp, nil
 }
 
-func (b *Badger) GetGroup(groupName string, limit int8) (map[string][]byte, error) {
+func (b *Badger) GetGroup(groupName string, limit int) (map[string][]byte, error) {
 	var resp map[string][]byte
 
 	if limit <= 0 {
@@ -160,7 +163,7 @@ func (b *Badger) GetGroup(groupName string, limit int8) (map[string][]byte, erro
 	}
 
 	err := b.db.View(func(txn *badger.Txn) error {
-		keys, err := getKeys(txn, groupName)
+		keys, err := getKeys(txn, groupName, limit)
 		if err != nil {
 			return fmt.Errorf("getKeys: %w", err)
 		}
