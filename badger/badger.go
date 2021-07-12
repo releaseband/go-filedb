@@ -121,7 +121,7 @@ func (b *Badger) AddToGroup(groupName, key string, val []byte) error {
 	return b.db.Update(func(txn *badger.Txn) error {
 		listKey := groupID(groupName, key)
 
-		if err := txn.Set([]byte(listKey), []byte(key)); err != nil {
+		if err := txn.Set([]byte(keysListID(listKey)), []byte(listKey)); err != nil {
 			return fmt.Errorf("saveKey failed: %w", err)
 		}
 

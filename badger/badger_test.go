@@ -3,6 +3,7 @@ package badger
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,6 +26,10 @@ func newTp() *tp {
 
 func (p tp) makeOpt() badger.Options {
 	return badger.DefaultOptions(p.dbDir)
+}
+
+func (p tp) removeDb() {
+	_ = os.Remove(p.dbDir)
 }
 
 func k(i int) string {
@@ -247,7 +252,7 @@ func TestBadger_list(t *testing.T) {
 	tt.shouldBeNil(err)
 
 	if len(list) != count {
-		t.Fatal("count invalid")
+		t.Fatalf("count invalid: exp=%d, got=%d", count, len(list))
 	}
 
 	for key := range list {
