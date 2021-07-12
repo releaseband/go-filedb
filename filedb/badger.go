@@ -9,13 +9,18 @@ import (
 
 const (
 	decrement                  = "|"
-	defaultCLeaUpDiscardRation = 0.1
+	defaultCLeaUpDiscardRation = 0.5
 )
 
 var (
 	ErrInvalidRangeLimit = errors.New("invalid range limit")
 	ErrNotFound          = errors.New("key not found")
 )
+
+
+func  makeListKey(listKey, fileKey string) string {
+	return listKey + decrement + fileKey
+}
 
 type Cfg struct {
 	CleanupTimer time.Duration
@@ -117,15 +122,16 @@ func (b *Badger) Del(key string) error {
 	return err
 }
 
-func (b Badger) makeListKey(listKey, fileKey string) string {
-	return listKey + decrement + fileKey
+func (b *Badger) DeleteFromGroup(listKey, fileKey string) error {
+	return b.Del(makeListKey(listKey, fileKey))
 }
 
-func (b *Badger) Push(listKey, key string, val []byte) error {
-	return b.Set(b.makeListKey(listKey, key), val)
+
+func (b *Badger) Push(prefixKey, key string, val []byte) error {
+	return b.Set(makeListKey(prefixKey, key), val)
 }
 
-func (b *Badger) Range(listKey string, limit int8) ([][]byte, error) {
+func (b *Badger) Range(prefixKey string, limit int8) ([][]byte, error) {
 	var resp [][]byte
 
 	if limit <= 0 {
@@ -136,7 +142,7 @@ func (b *Badger) Range(listKey string, limit int8) ([][]byte, error) {
 		it := txn.NewIterator(badger.DefaultIteratorOptions)
 		defer it.Close()
 
-		prefix := []byte(listKey)
+		prefix := []byte(prefixKey)
 
 		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 			item := it.Item()
