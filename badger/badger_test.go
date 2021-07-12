@@ -1,4 +1,4 @@
-package filedb
+package badger
 
 import (
 	"errors"
