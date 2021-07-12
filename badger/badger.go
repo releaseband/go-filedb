@@ -19,12 +19,12 @@ var (
 	ErrNotFound          = errors.New("key not found")
 )
 
-func listID(listKey, fileKey string) string {
-	return listKey + decrement + fileKey
+func groupID(groupKey, fileKey string) string {
+	return groupKey + decrement + fileKey
 }
 
-func keysListID(key string) string {
-	return keysListPrefix + decrement + key
+func keysListID(groupID string) string {
+	return keysListPrefix + decrement + groupID
 }
 
 type Badger struct {
@@ -99,15 +99,13 @@ func (b *Badger) Del(key string) error {
 	})
 }
 
-func (b *Badger) DeleteFromGroup(key string) error {
+func (b *Badger) DeleteFromGroup(groupID string) error {
 	return b.db.Update(func(txn *badger.Txn) error {
-		keysID := keysListID(key)
-
-		if err := _delete(txn, key); err != nil {
+		if err := _delete(txn, groupID); err != nil {
 			return err
 		}
 
-		if err := _delete(txn, keysID); err != nil {
+		if err := _delete(txn, keysListID(groupID)); err != nil {
 			return err
 		}
 
@@ -120,7 +118,7 @@ func (b *Badger) saveKey(key string) error {
 }
 
 func (b *Badger) AddToGroup(groupName, key string, val []byte) error {
-	listKey := listID(groupName, key)
+	listKey := groupID(groupName, key)
 
 	if err := b.saveKey(listKey); err != nil {
 		return fmt.Errorf("saveKey: %w", err)
