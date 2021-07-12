@@ -21,14 +21,8 @@ func newTp() *tp {
 	}
 }
 
-func (p tp) makeCfg() Cfg {
-	opt := badger.DefaultOptions(p.dbDir)
-	//opt.InMemory = true
-
-	return Cfg{
-		CleanupTimer: 5 * time.Minute,
-		BadgerCfg:    opt,
-	}
+func (p tp) makeOpt() badger.Options {
+	return badger.DefaultOptions(p.dbDir)
 }
 
 func k(i int) string {
@@ -77,7 +71,7 @@ func Test_Badger(t *testing.T) {
 	tp := newTp()
 	tt := newT(t)
 
-	cfg := tp.makeCfg()
+	cfg := tp.makeOpt()
 	bg, err := OpenDatabase(cfg)
 
 	defer func() {
@@ -189,7 +183,7 @@ func TestBadger_CleanUp(t *testing.T) {
 	tp := newTp()
 	tt := newT(t)
 
-	cfg := tp.makeCfg()
+	cfg := tp.makeOpt()
 	bg, err := OpenDatabase(cfg)
 	tt.shouldBeNil(err)
 	defer func() {
@@ -221,27 +215,27 @@ func TestBadger_CleanUp(t *testing.T) {
 }
 
 func TestBadger_Size(t *testing.T) {
-	//const count = 1000
-	//tp := newTp(count)
-	//tt := newT(t)
-	//
-	//cfg := tp.makeCfg()
-	//bg, err := OpenDatabase(cfg)
-	//tt.shouldBeNil(err)
-	//
-	//defer func() {
-	//	err = bg.Close()
-	//	tt.shouldBeNil(err)
-	//}()
-	//
-	//fmt.Println("size")
-	//fmt.Println(bg.Size())
-	//
-	//for i := 0; i < count; i++ {
-	//	tt.shouldBeNil(bg.Del(strconv.Itoa(i)))
-	//}
+	const count = 1000
+	tp := newTp()
+	tt := newT(t)
 
-	//fmt.Println("size after delete")
-	//fmt.Println(bg.Size())
+	cfg := tp.makeOpt()
+	bg, err := OpenDatabase(cfg)
+	tt.shouldBeNil(err)
+
+	defer func() {
+		err = bg.Close()
+		tt.shouldBeNil(err)
+	}()
+
+	fmt.Println("size")
+	fmt.Println(bg.Size())
+
+	for i := 0; i < count; i++ {
+		tt.shouldBeNil(bg.Del(strconv.Itoa(i)))
+	}
+
+	fmt.Println("size after delete")
+	fmt.Println(bg.Size())
 
 }

@@ -22,14 +22,8 @@ func  makeListKey(listKey, fileKey string) string {
 	return listKey + decrement + fileKey
 }
 
-type Cfg struct {
-	CleanupTimer time.Duration
-	BadgerCfg    badger.Options
-}
-
 type Badger struct {
 	db           *badger.DB
-	errorHandler func(mess string, err error)
 }
 
 func (b *Badger) Close() error {
@@ -38,12 +32,6 @@ func (b *Badger) Close() error {
 
 func (b *Badger) Size() (lsm int64, vlog int64) {
 	return b.db.Size()
-}
-
-func (b *Badger) log(mess string, err error) {
-	if b.errorHandler != nil {
-		b.errorHandler(mess, err)
-	}
 }
 
 func (b *Badger) CleanUp() error {
@@ -88,8 +76,6 @@ func (b *Badger) Get(key string) ([]byte, error) {
 	})
 
 	if err != nil {
-		b.log("txn.Get failed", err)
-
 		if errors.Is(err, badger.ErrKeyNotFound) {
 			err = ErrNotFound
 		}
@@ -148,8 +134,8 @@ func (b *Badger) Range(prefixKey string, limit int8) ([][]byte, error) {
 	return resp, err
 }
 
-func OpenDatabase(cfg Cfg) (*Badger, error) {
-	db, err := badger.Open(cfg.BadgerCfg)
+func OpenDatabase(opt badger.Options) (*Badger, error) {
+	db, err := badger.Open(opt)
 	if err != nil {
 		return nil, err
 	}
