@@ -3,11 +3,13 @@ package badger
 import (
 	"errors"
 	"fmt"
-	"github.com/dgraph-io/badger/v3"
 	"time"
+
+	"github.com/dgraph-io/badger/v3"
 )
 
 const (
+	keysListPrefix             = "keys"
 	decrement                  = "|"
 	defaultCLeaUpDiscardRation = 0.5
 )
@@ -17,13 +19,16 @@ var (
 	ErrNotFound          = errors.New("key not found")
 )
 
-
-func  makeListKey(listKey, fileKey string) string {
+func listID(listKey, fileKey string) string {
 	return listKey + decrement + fileKey
 }
 
+func keysListID(key string) string {
+	return keysListPrefix + decrement + key
+}
+
 type Badger struct {
-	db           *badger.DB
+	db *badger.DB
 }
 
 func (b *Badger) Close() error {
@@ -84,48 +89,93 @@ func (b *Badger) Get(key string) ([]byte, error) {
 	return resp, err
 }
 
+func _delete(txn *badger.Txn, key string) error {
+	return txn.Delete([]byte(key))
+}
+
 func (b *Badger) Del(key string) error {
 	return b.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte(key))
+		return _delete(txn, key)
 	})
 }
 
-func (b *Badger) DeleteFromGroup(listKey, fileKey string) error {
-	return b.Del(makeListKey(listKey, fileKey))
+func (b *Badger) DeleteFromGroup(key string) error {
+	return b.db.Update(func(txn *badger.Txn) error {
+		keysID := keysListID(key)
+
+		if err := _delete(txn, key); err != nil {
+			return err
+		}
+
+		if err := _delete(txn, keysID); err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
-
-func (b *Badger) Push(prefixKey, key string, val []byte) error {
-	return b.Set(makeListKey(prefixKey, key), val)
+func (b *Badger) saveKey(key string) error {
+	return b.Set(keysListID(key), []byte(key))
 }
 
-func (b *Badger) Range(prefixKey string, limit int8) ([][]byte, error) {
-	var resp [][]byte
+func (b *Badger) AddToGroup(groupName, key string, val []byte) error {
+	listKey := listID(groupName, key)
+
+	if err := b.saveKey(listKey); err != nil {
+		return fmt.Errorf("saveKey: %w", err)
+	}
+
+	return b.Set(listKey, val)
+}
+
+func getKeys(txn *badger.Txn, listName string) ([]string, error) {
+	var resp []string
+
+	it := txn.NewIterator(badger.DefaultIteratorOptions)
+	defer it.Close()
+
+	prefix := []byte(keysListID(listName))
+
+	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+		item := it.Item()
+
+		err := item.Value(func(val []byte) error {
+			resp = append(resp, string(val))
+
+			return nil
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("item.Value: %w", err)
+		}
+	}
+
+	return resp, nil
+}
+
+func (b *Badger) GetGroup(groupName string, limit int8) (map[string][]byte, error) {
+	var resp map[string][]byte
 
 	if limit <= 0 {
 		return nil, ErrInvalidRangeLimit
 	}
 
 	err := b.db.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
-		defer it.Close()
+		keys, err := getKeys(txn, groupName)
+		if err != nil {
+			return fmt.Errorf("getKeys: %w", err)
+		}
 
-		prefix := []byte(prefixKey)
+		resp = make(map[string][]byte, len(keys))
 
-		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			item := it.Item()
-
-			err := item.Value(func(val []byte) error {
-				valCopy := make([]byte, len(val))
-				copy(val, valCopy)
-				resp = append(resp, val)
-
-				return nil
-			})
-
+		for _, k := range keys {
+			val, err := b.Get(k)
 			if err != nil {
-				return fmt.Errorf("item.Value: %w", err)
+				return fmt.Errorf("get(%s) failed: %w", k, err)
 			}
+
+			resp[k] = val
 		}
 
 		return nil
@@ -141,6 +191,6 @@ func OpenDatabase(opt badger.Options) (*Badger, error) {
 	}
 
 	return &Badger{
-		db:           db,
+		db: db,
 	}, nil
 }

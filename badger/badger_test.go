@@ -3,10 +3,12 @@ package badger
 import (
 	"errors"
 	"fmt"
-	"github.com/dgraph-io/badger/v3"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/dgraph-io/badger/v3"
 )
 
 type tp struct {
@@ -96,23 +98,6 @@ func Test_Badger(t *testing.T) {
 		if exp != got {
 			t.Fatalf("exp=%s, got=%s", exp, got)
 		}
-	}
-
-	const (
-		listKey   = "list"
-		listCount = 13
-	)
-
-	for i := 0; i < listCount; i++ {
-		err = bg.Push(listKey, k(i), v(i))
-		tt.shouldBeNil(err)
-	}
-
-	vals, err := bg.Range(listKey, 127)
-	tt.shouldBeNil(err)
-
-	if len(vals) != listCount {
-		t.Fatal("count invalid")
 	}
 
 	for i := 0; i < count; i++ {
@@ -238,4 +223,46 @@ func TestBadger_Size(t *testing.T) {
 	fmt.Println("size after delete")
 	fmt.Println(bg.Size())
 
+}
+
+func TestBadger_list(t *testing.T) {
+	const (
+		count   = 100
+		listKey = "qwerty"
+	)
+
+	tp := newTp()
+	tt := newT(t)
+
+	cfg := tp.makeOpt()
+	bg, err := OpenDatabase(cfg)
+	tt.shouldBeNil(err)
+
+	for i := 0; i < count; i++ {
+		err = bg.AddToGroup(listKey, k(i), v(i))
+		tt.shouldBeNil(err)
+	}
+
+	list, err := bg.GetGroup(listKey, 127)
+	tt.shouldBeNil(err)
+
+	if len(list) != count {
+		t.Fatal("count invalid")
+	}
+
+	for key := range list {
+		if !strings.HasPrefix(key, listKey) {
+			t.Fatal("range failed: key is invalid")
+		}
+	}
+
+	for key := range list {
+		tt.shouldBeNil(bg.DeleteFromGroup(key))
+	}
+
+	list, err = bg.GetGroup(listKey, 127)
+	tt.shouldBeNil(err)
+	if len(list) != 0 {
+		t.Fatal("finished list rang is invalid, func delete failed")
+	}
 }
