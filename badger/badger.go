@@ -118,13 +118,15 @@ func (b *Badger) saveKey(key string) error {
 }
 
 func (b *Badger) AddToGroup(groupName, key string, val []byte) error {
-	listKey := groupID(groupName, key)
+	return b.db.Update(func(txn *badger.Txn) error {
+		listKey := groupID(groupName, key)
 
-	if err := b.saveKey(listKey); err != nil {
-		return fmt.Errorf("saveKey: %w", err)
-	}
+		if err := txn.Set([]byte(listKey), []byte(key)); err != nil {
+			return fmt.Errorf("saveKey failed: %w", err)
+		}
 
-	return b.Set(listKey, val)
+		return txn.Set([]byte(listKey), val)
+	})
 }
 
 func getKeys(txn *badger.Txn, listName string, limit int) ([]string, error) {
